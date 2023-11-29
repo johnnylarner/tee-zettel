@@ -1,5 +1,9 @@
 mod util {
-    use std::{fs::File, io::Read, path::Path};
+    use std::{
+        fs::{write, File},
+        io::{Read, Write},
+        path::Path,
+    };
 
     pub fn read_file_contents_from_path(file: &Path) -> String {
         let display = file.display();
@@ -17,6 +21,10 @@ mod util {
                 display
             ));
         file_as_string
+    }
+
+    pub fn write_to_file(contents: &String, file: &Path) {
+        write(file, contents).unwrap();
     }
 }
 
@@ -46,33 +54,57 @@ pub mod page {
     }
 }
 pub mod table {
-    use tabled::builder::Builder;
 
-    const TABLE_HEADERS: [&str; 3] = ["Infusion", "Body", "Notes"];
+    use tabled::{
+        builder::Builder,
+        settings::{object::Segment, Alignment, Height, Modify, Width},
+    };
+
+    const TEA_TABLE_HEADERS: [&str; 3] = ["\n#", "\nBody", "\nNotes"];
+    const COLUMN_WIDTHS: [i8; 3] = [3, 20, 100];
     const DEFAULT_INFUSIONS: i8 = 5;
 
-    pub fn build_default_table() -> String {
+    pub fn build_default_infusion_table() -> String {
         let mut builder = Builder::default();
 
-        let headers = TABLE_HEADERS.iter().map(|header| header.to_string());
+        let headers = TEA_TABLE_HEADERS.iter().map(|header| header.to_string());
         builder.set_header(headers);
 
         for i in 1..DEFAULT_INFUSIONS + 1 {
-            let row = vec![i.to_string(), String::new(), String::new()];
+            let row = vec![format!("\n{:?}", i), String::new(), String::new()];
             builder.push_record(row);
         }
 
-        builder.build().to_string()
+        let widths = Width::list(COLUMN_WIDTHS.iter().map(|i| *i as usize));
+
+        // TODO: Consider using list approach to set height
+        // let heights = Height::list((0..DEFAULT_INFUSIONS + 1).map(|_| 3));
+        builder
+            .build()
+            .with(
+                Modify::new(Segment::all())
+                    .with(Alignment::center_vertical())
+                    .with(Alignment::center())
+                    .with(Height::increase(3)),
+            )
+            .with(widths)
+            .to_string()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::page::PageConfig;
-    use super::table::build_default_table;
+    use super::table::build_default_infusion_table;
 
     use std::{io::Write, path::Path};
+    use std::fs;
     use tempfile::NamedTempFile;
+
+    fn read_test_table() -> String {
+        let test_table_path = Path::new("./tables/test_infusion_table.txt");
+        fs::read_to_string(test_table_path).unwrap()
+    }
 
     #[test]
     fn page_config_from_toml_when_path_and_content_is_valid() {
@@ -111,21 +143,9 @@ mod tests {
 
     #[test]
     fn table_build_table_returns_expected_table() {
-        let table = build_default_table();
+        let table = build_default_infusion_table();
 
-        let expected = "+----------+------+-------+\n\
-                        | Infusion | Body | Notes |\n\
-                        +----------+------+-------+\n\
-                        | 1        |      |       |\n\
-                        +----------+------+-------+\n\
-                        | 2        |      |       |\n\
-                        +----------+------+-------+\n\
-                        | 3        |      |       |\n\
-                        +----------+------+-------+\n\
-                        | 4        |      |       |\n\
-                        +----------+------+-------+\n\
-                        | 5        |      |       |\n\
-                        +----------+------+-------+";
+        let expected = read_test_table();
 
         println!("{table}");
         println!("{expected}");
